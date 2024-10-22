@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 
 #ifdef CIRCUS_EXPORTS
 #define CIRCUS_API __declspec(dllexport)

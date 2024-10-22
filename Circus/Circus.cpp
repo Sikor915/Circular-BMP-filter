@@ -1,5 +1,4 @@
 #include "pch.h"
-#include <iostream>
 #include "Circus.h"
 
 void Circus(long long x, long long y)
