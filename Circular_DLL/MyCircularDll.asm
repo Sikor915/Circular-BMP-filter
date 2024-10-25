@@ -5,10 +5,11 @@
 .CODE
 
 CompressionFuncReal PROC
-    mov al, cl      
-    add al, 200
-    mov cl, al
-    ret
+   ; mov al, cl      
+   ; add al, 200
+   ; mov cl, al
+   ; ret
+
 CompressionFuncReal ENDP
 
 END 			;no entry point
