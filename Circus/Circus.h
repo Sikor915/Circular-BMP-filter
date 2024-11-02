@@ -1,5 +1,7 @@
 #pragma once
 #include <iostream>
+#include <vector>
+#include <algorithm>
 
 #ifdef CIRCUS_EXPORTS
 #define CIRCUS_API __declspec(dllexport)
@@ -8,4 +10,4 @@
 #endif
 
 extern "C" CIRCUS_API void Circus(long long x, long long y);
-extern "C" CIRCUS_API int CompressionFuncCircus(int x, int y);
+extern "C" CIRCUS_API void CompressionFuncCircus(int* pixelData, int size, int width, int height);

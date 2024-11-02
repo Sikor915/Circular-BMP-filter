@@ -4,12 +4,16 @@
 
 .CODE
 
+; V1 
+; RCX - adres z informacja do pikseli
+; RDX - rozmiar do przejscia
 CompressionFuncReal PROC
-   ; mov al, cl      
-   ; add al, 200
-   ; mov cl, al
-   ; ret
+    mov al, [rcx]      
+    add al, 200
+    mov [rcx], al
+    ret
 
 CompressionFuncReal ENDP
+
 
 END 			;no entry point

@@ -5,8 +5,10 @@
 #include <tchar.h>
 #include "Circus.h"
 #include <thread>
+#include <chrono>
+#include <numeric>
 
-void calculate_optimal_sizes(std::vector<uchar>& b, int y, std::vector<int>& z)
+/*void calculate_optimal_sizes(std::vector<int>& b, int y, std::vector<int>& z)
 {
 	int x = b.size()/4;
 	int c = x / y;
@@ -17,6 +19,18 @@ void calculate_optimal_sizes(std::vector<uchar>& b, int y, std::vector<int>& z)
 		z.push_back(c + (reszta_z_c > 0 ? 1 : 0));
 		if (reszta_z_c > 0)
 			reszta_z_c--;
+	}
+}*/
+
+void calculate_optimal_sizes(int totalSize, int numThreads, std::vector<int>& sizes) 
+{
+	int baseSize = totalSize / numThreads;
+	int remainder = totalSize % numThreads;
+
+	for (int i = 0; i < numThreads; ++i) 
+	{
+		sizes.push_back(baseSize + (remainder > 0 ? 1 : 0));
+		if (remainder > 0) remainder--;
 	}
 }
 
@@ -131,10 +145,8 @@ int main(int argc, char *argv[])
 		{
 			if (hLibASM != NULL)
 			{
-
-				typedef uchar(*MyFunctionType3)(uchar);
+				typedef int*(*MyFunctionType3)(int*, int);
 				auto CompressionFuncReal = (MyFunctionType3)GetProcAddress(hLibASM, "CompressionFuncReal");
-
 				
 				if (CompressionFuncReal == NULL)
 				{
@@ -142,117 +154,183 @@ int main(int argc, char *argv[])
 					break;
 				}
 
-				std::vector<std::thread> threads;
-
-				QImage img("C:/Users/sikor/OneDrive/Desktop/Szkola/img.bmp"); //To dzia³a i wczytuje obraz
+				//QImage img("C:/Users/sikor/OneDrive/Desktop/Szkola/test.bmp"); //To dzia³a i wczytuje obraz
+				QImage img(file_path.c_str());
 				if (img.isNull())
 				{
 					std::cout << "Image is null" << std::endl;
-					break;
 				}
-				
-				uchar* data = img.bits();
-				
-				int bytesPerLine = img.bytesPerLine();
-				int height = img.height();
-				int segmentHeight = height / threadsToUse;
-				int width = img.width();
-				
-				std::cout << "Bytes per line: " << bytesPerLine << std::endl;
-				std::cout << "Height: " << height << std::endl;
-				std::cout << "Width: " << width << std::endl;
-
-				QByteArray ba;
-				QBuffer buffer(&ba);
-				buffer.open(QIODevice::WriteOnly);
-				img.save(&buffer, "BMP");
-
-				std::vector<uchar> vec(ba.begin(), ba.end());
-				std::vector<uchar> subBMP;
-				std::vector<int> sizes;
-				int threshold = 3;
-				std::cout << vec.size() % threadsToUse << std::endl;
-
-				std::vector<uchar>::iterator bmpIt = vec.begin();
-				std::vector<int>::iterator sizesIt = sizes.begin();
-
-				calculate_optimal_sizes(vec, threadsToUse, sizes);
-
-				// Ogolnie to vector przechowuje dane o wszystkich kanalach, wiec musze przeskakiwac co 4
-				// by leciec po kolei pikselami.
-				// Dziwnie wyglada fakt ze rozmiar "vec" nie dzieli sie przez 4 i nie wiem do konca co z tym zrobic
-
-
-				/*TODO:
-				 * 1. Sprobowac przekonwertowac "vec" na vector intów (dla ulatwienia)
-				 * 2. Zrobic petle wywolujaca funkcje asm
-				 * 3. Cos zrobic w funkcji asm
-				 * 4. TESTING
-				 */
-				for (int j = 0; j < threadsToUse; j++)
+				else
 				{
-					std::thread t1([&vec, threshold, bmpIt, sizesIt, sizes, j]()
+					auto startTime = std::chrono::high_resolution_clock::now();
+					int bytesPerLine = img.bytesPerLine();
+					int height = img.height();
+					int segmentHeight = height / threadsToUse;
+					int width = img.width();
+
+					std::cout << "Bytes per line: " << bytesPerLine << std::endl;
+					std::cout << "Height: " << height << std::endl;
+					std::cout << "Width: " << width << std::endl;
+
+
+					auto byteDataPointer = img.bits();
+					QRgb* rgbData = (QRgb*)byteDataPointer;
+					std::cout << "RGB data: " << qRed(*rgbData) << " " << qGreen(*rgbData) << " " << qBlue(*rgbData) << " " << qAlpha(*rgbData) << std::endl;
+
+					std::vector<int> intBMP;
+
+					for (int i = 0; i < height; i++)
 					{
-							for (auto i = bmpIt; i < sizes[j] + sizesIt; i++)
-							{
-
-							}
+						for (int j = 0; j < width; j++)
+						{
+							QRgb pixel = rgbData[i * width + j];
+							intBMP.push_back(qRed(pixel));
+							intBMP.push_back(qGreen(pixel));
+							intBMP.push_back(qBlue(pixel));
+							intBMP.push_back(qAlpha(pixel)); // Should be 255 everywhere
+						}
 					}
-					);
+
+					std::vector<std::thread> threads;
+					std::vector<int> sizes;
+
+					calculate_optimal_sizes(intBMP.size(), threadsToUse, sizes);
+
+					int currentIdx = 0;
+					for (int j = 0; j < threadsToUse; j++)
+					{
+						int segmentSize = sizes[j];
+
+						threads.emplace_back([&intBMP, currentIdx, segmentSize, CompressionFuncReal]()
+							{
+								CompressionFuncReal(&intBMP[currentIdx], segmentSize);
+							});
+
+						currentIdx += segmentSize;
+					}
+
+					for (auto& t : threads)
+					{
+						t.join();
+					}
+
+					std::filesystem::path savePath(file_path);
+					savePath = savePath.remove_filename();
+					std::string savePathStr = savePath.string() + "outputASM.bmp";
+
+					img.save(savePathStr.c_str());
+
+					auto endTime = std::chrono::high_resolution_clock::now();
+					std::chrono::duration<double> duration = endTime - startTime;
+					std::cout << "Filtering completed in " << duration.count() << " seconds.\n";
+
+					std::cout << "Zapisano obraz pod podana sciezka, pod nazwa outputASM.bmp" << std::endl;
 				}
-
-				/*
-				//std::thread t1([&data, &bytesPerLine, &height, &width, &CompressionFuncReal]()
-				//	{
-
-				//		//Pêtla musi byæ w assemblerze, tu tylko przekazaæ wskaŸnik na dane
-
-				//		for (int y = 0; y < height; y++)
-				//		{
-				//			for (int x = 0; x < width; x++)
-				//			{
-				//				uchar* pixel = data + y * bytesPerLine + x * 4;
-
-				//				//std::cout << "Pixel (BGR): " << (int)pixel[0] << " " << (int)pixel[1] << " " << (int)pixel[2] << std::endl;
-
-				//				pixel[0] = CompressionFuncReal(pixel[0]);  // Kana³ niebieski
-				//				pixel[1] = CompressionFuncReal(pixel[1]);  // Kana³ zielony
-				//				pixel[2] = CompressionFuncReal(pixel[2]);  // Kana³ czerwony
-
-				//				//std::cout << "Pixel after \"Compression\" (BGR): " << (int)pixel2[0] << " " << (int)pixel2[1] << " " << (int)pixel2[2] << std::endl;
-				//			}
-				//		}
-				//	});
-
-				//for (int i = 0; i < threadsToUse; i++)
-				//{
-				//	int startY = i * segmentHeight;
-				//	int endY = (i == threadsToUse - 1) ? height : (i + 1) * segmentHeight;
-
-				//	threads.push_back(std::thread([&, startY, endY]()
-				//		{
-				//			//uchar* startPixel = data + startY * bytesPerLine;
-				//			//ProcessImageSegment(startPixel, endY - startY, bytesPerLine, CompressionFuncReal);
-				//		}));
-
-				//}
-				//
-				//std::cout << "Czekanie na threada..." << std::endl;
-
-				////t1.join();
-
-				//for (auto & a : threads)
-				//{
-				//	a.join();
-				//}
-				*/
-				img.save("C:/Users/sikor/OneDrive/Desktop/Szkola/img2.bmp");
-
-				std::cout << "Zapisano obraz pod podana sciezka, pod nazwa img2.bmp" << std::endl;
+			
+				
 			}
 			else if(hDLLCPP != NULL)
 			{
-				//load cpp compression
+				typedef int* (*MyFunctionType3)(int*, int, int, int);
+				auto CompressionFuncCircus = (MyFunctionType3)GetProcAddress(hDLLCPP, "CompressionFuncCircus");
+
+				if (CompressionFuncCircus == NULL)
+				{
+					std::cerr << "Nie udalo sie pobrac adresu funkcji z biblioteki DLL." << std::endl;
+					break;
+				}
+
+				//QImage img("C:/Users/sikor/OneDrive/Desktop/Szkola/test.bmp"); //To dzia³a i wczytuje obraz
+				QImage img(file_path.c_str());
+				if (img.isNull())
+				{
+					std::cout << "Image is null" << std::endl;
+					
+				}
+				else
+				{
+					auto startTime = std::chrono::high_resolution_clock::now();
+					int bytesPerLine = img.bytesPerLine();
+					int height = img.height();
+					int segmentHeight = height / threadsToUse;
+					int width = img.width();
+
+					std::cout << "Image format: " << img.format() << std::endl; // 4
+					std::cout << "Bytes per line: " << bytesPerLine << std::endl; // 9600
+					std::cout << "Height: " << height << std::endl; // 1600
+					std::cout << "Segment height: " << segmentHeight << std::endl; // 400
+					std::cout << "Width: " << width << std::endl; // 2400
+
+					auto byteDataPointer = img.bits();
+					QRgb* rgbData = (QRgb*)byteDataPointer;
+					//std::cout << "RGB data: " << qRed(*rgbData) << " " << qGreen(*rgbData) << " " << qBlue(*rgbData) << " " << qAlpha(*rgbData) << std::endl;
+
+					std::vector<int> intBMP;
+
+					for (int i = 0; i < height; i++)
+					{
+						for (int j = 0; j < width; j++)
+						{
+							QRgb pixel = rgbData[i * width + j];
+							intBMP.push_back(qRed(pixel));
+							intBMP.push_back(qGreen(pixel));
+							intBMP.push_back(qBlue(pixel));
+							intBMP.push_back(qAlpha(pixel)); // Should be 255 everywhere
+						}
+					}
+
+					std::vector<std::thread> threads;
+					std::vector<int> sizes;
+
+					calculate_optimal_sizes(intBMP.size(), threadsToUse, sizes);
+
+					int currentIdx = 0;
+					for (int j = 0; j < threadsToUse; j++)
+					{
+						int segmentSize = sizes[j];
+
+						threads.emplace_back([&intBMP, currentIdx, segmentSize, width, segmentHeight, CompressionFuncCircus]()
+							{
+								CompressionFuncCircus(&intBMP[currentIdx], segmentSize, width, segmentHeight);
+							});
+
+						currentIdx += segmentSize;
+					}
+
+					for (auto& t : threads)
+					{
+						t.join();
+					}
+
+					int index = 0;
+					for (int i = 0; i < height; ++i)
+					{
+						for (int j = 0; j < width; ++j)
+						{
+							int r = intBMP[index++];
+							int g = intBMP[index++];
+							int b = intBMP[index++];
+							int a = intBMP[index++];
+
+							rgbData[i * width + j] = qRgba(r, g, b, a);
+						}
+					}
+
+					std::filesystem::path savePath(file_path);
+					savePath = savePath.remove_filename();
+					std::string savePathStr = savePath.string() + "outputCPP.bmp";
+
+					img.save(savePathStr.c_str());
+
+					auto endTime = std::chrono::high_resolution_clock::now();
+					std::chrono::duration<double> duration = endTime - startTime;
+					std::cout << "Filtering completed in " << duration.count() << " seconds.\n";
+
+					std::cout << "Zapisano obraz pod podana sciezka, pod nazwa outputCPP.bmp" << std::endl;
+
+				}
+
+				
 			}
 			else
 			{
