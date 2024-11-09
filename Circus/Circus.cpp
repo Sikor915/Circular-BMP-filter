@@ -8,7 +8,7 @@ void Circus(long long x, long long y)
 
 void CompressionFuncCircus(int* pixelData, int size, int width, int height)
 {
-    const int filterKernel[5][5] = {
+    const int filterMask[5][5] = {
        {0, 1, 1, 1, 0},
        {1, 1, 1, 1, 1},
        {1, 1, 1, 1, 1},
@@ -16,7 +16,7 @@ void CompressionFuncCircus(int* pixelData, int size, int width, int height)
        {0, 1, 1, 1, 0}
     };
 
-    const int kernelSum = 20;  
+    const int filterSum = 20;  
 
     int rowBytes = width * 4;
 
@@ -32,7 +32,7 @@ void CompressionFuncCircus(int* pixelData, int size, int width, int height)
         {
             for (int x = -2; x <= 2; ++x) 
             {
-                if (filterKernel[y + 2][x + 2] == 0) continue;
+                if (filterMask[y + 2][x + 2] == 0) continue;
 
                 int neighborRow = row + y;
                 int neighborCol = col + x;
@@ -55,4 +55,5 @@ void CompressionFuncCircus(int* pixelData, int size, int width, int height)
     }
     
 }
+
 

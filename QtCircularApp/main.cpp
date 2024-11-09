@@ -8,20 +8,6 @@
 #include <chrono>
 #include <numeric>
 
-/*void calculate_optimal_sizes(std::vector<int>& b, int y, std::vector<int>& z)
-{
-	int x = b.size()/4;
-	int c = x / y;
-	float reszta_z_c = x % y;
-	for (int i = 0; i < y; ++i)
-	{
-		std::cout << c << "  " << reszta_z_c << std::endl;
-		z.push_back(c + (reszta_z_c > 0 ? 1 : 0));
-		if (reszta_z_c > 0)
-			reszta_z_c--;
-	}
-}*/
-
 void calculate_optimal_sizes(int totalSize, int numThreads, std::vector<int>& sizes) 
 {
 	int baseSize = totalSize / numThreads;
@@ -42,6 +28,7 @@ int main(int argc, char *argv[])
 	std::string choice;
 	std::cin >> choice;
 
+	int choiceInt = 0;
 	HMODULE hLibASM{};
 	HINSTANCE hDLLCPP{};
 
@@ -55,6 +42,7 @@ int main(int argc, char *argv[])
 			printf("Nie mozna zaladowac biblioteki Circular_DLL.dll\n");
 			return 1;
 		}
+		choiceInt = 1;
 
 	}
 	else if (choice == "2")
@@ -67,6 +55,7 @@ int main(int argc, char *argv[])
 			printf("Nie mozna zaladowac biblioteki Circus.dll\n");
 			return 1;
 		}
+		choiceInt = 2;
 
 	}
 	else
@@ -76,7 +65,7 @@ int main(int argc, char *argv[])
 	}
 
 	choice = "";
-	std::string file_path;
+	std::string file_path = "";
 	int threadsToUse{4};
 
 	while (choice != "5")
@@ -91,6 +80,7 @@ int main(int argc, char *argv[])
 
 		if (choice == "1")
 		{
+			std::cout << "Aktualna sciezka do pliku: " << file_path << std::endl;
 			std::cout << "Prosze o podanie sciezki do obrazu: ";
 			std::cin >> file_path;
 		}
@@ -117,6 +107,7 @@ int main(int argc, char *argv[])
 					printf("Nie mozna zaladowac biblioteki Circular_DLL.dll\n");
 					return 1;
 				}
+				choiceInt = 1;
 
 			}
 			else if(dllChoice == "2")
@@ -134,6 +125,7 @@ int main(int argc, char *argv[])
 					printf("Nie mozna zaladowac biblioteki Circus.dll\n");
 					return 1;
 				}
+				choiceInt = 2;
 
 			}
 			else
@@ -143,18 +135,18 @@ int main(int argc, char *argv[])
 		}
 		else if(choice == "3")
 		{
-			if (hLibASM != NULL)
+			if (hLibASM != NULL and choiceInt == 1)
 			{
-				typedef int*(*MyFunctionType3)(int*, int);
+				typedef int* (*MyFunctionType3)(QRgb*, int, int);
 				auto CompressionFuncReal = (MyFunctionType3)GetProcAddress(hLibASM, "CompressionFuncReal");
-				
+
+
 				if (CompressionFuncReal == NULL)
 				{
-					std::cerr << "Nie udalo sie pobrac adresu funkcji z biblioteki DLL." << std::endl;
+					std::cerr << "Nie udalo sie pobrac adresu funkcji z biblioteki DLL ASM." << std::endl;
 					break;
 				}
 
-				//QImage img("C:/Users/sikor/OneDrive/Desktop/Szkola/test.bmp"); //To dzia³a i wczytuje obraz
 				QImage img(file_path.c_str());
 				if (img.isNull())
 				{
@@ -162,7 +154,6 @@ int main(int argc, char *argv[])
 				}
 				else
 				{
-					auto startTime = std::chrono::high_resolution_clock::now();
 					int bytesPerLine = img.bytesPerLine();
 					int height = img.height();
 					int segmentHeight = height / threadsToUse;
@@ -170,48 +161,56 @@ int main(int argc, char *argv[])
 
 					std::cout << "Bytes per line: " << bytesPerLine << std::endl;
 					std::cout << "Height: " << height << std::endl;
+					std::cout << "Segment height: " << segmentHeight << std::endl;
 					std::cout << "Width: " << width << std::endl;
 
 
 					auto byteDataPointer = img.bits();
 					QRgb* rgbData = (QRgb*)byteDataPointer;
-					std::cout << "RGB data: " << qRed(*rgbData) << " " << qGreen(*rgbData) << " " << qBlue(*rgbData) << " " << qAlpha(*rgbData) << std::endl;
-
-					std::vector<int> intBMP;
-
+					std::vector<QRgb> rgbDataSegments;
+				
 					for (int i = 0; i < height; i++)
 					{
 						for (int j = 0; j < width; j++)
 						{
-							QRgb pixel = rgbData[i * width + j];
-							intBMP.push_back(qRed(pixel));
-							intBMP.push_back(qGreen(pixel));
-							intBMP.push_back(qBlue(pixel));
-							intBMP.push_back(qAlpha(pixel)); // Should be 255 everywhere
+							rgbDataSegments.push_back(rgbData[i * width + j]);
 						}
 					}
 
 					std::vector<std::thread> threads;
 					std::vector<int> sizes;
+					calculate_optimal_sizes(rgbDataSegments.size(), threadsToUse, sizes);
 
-					calculate_optimal_sizes(intBMP.size(), threadsToUse, sizes);
+					auto startTime = std::chrono::high_resolution_clock::now();
 
 					int currentIdx = 0;
 					for (int j = 0; j < threadsToUse; j++)
 					{
 						int segmentSize = sizes[j];
 
-						threads.emplace_back([&intBMP, currentIdx, segmentSize, CompressionFuncReal]()
+						threads.emplace_back([&rgbDataSegments, currentIdx, segmentSize, width, segmentHeight, CompressionFuncReal]()
 							{
-								CompressionFuncReal(&intBMP[currentIdx], segmentSize);
+								CompressionFuncReal(&rgbDataSegments[currentIdx], segmentSize, segmentHeight);
 							});
 
 						currentIdx += segmentSize;
+
 					}
 
 					for (auto& t : threads)
 					{
 						t.join();
+					}
+
+					auto endTime = std::chrono::high_resolution_clock::now();
+
+					int index = 0;
+					for (int i = 0; i < height; ++i)
+					{
+						for (int j = 0; j < width; ++j)
+						{
+							rgbData[i * width + j] = rgbDataSegments[i * width + j];
+						}
 					}
 
 					std::filesystem::path savePath(file_path);
@@ -220,7 +219,6 @@ int main(int argc, char *argv[])
 
 					img.save(savePathStr.c_str());
 
-					auto endTime = std::chrono::high_resolution_clock::now();
 					std::chrono::duration<double> duration = endTime - startTime;
 					std::cout << "Filtering completed in " << duration.count() << " seconds.\n";
 
@@ -229,18 +227,17 @@ int main(int argc, char *argv[])
 			
 				
 			}
-			else if(hDLLCPP != NULL)
+			else if(hDLLCPP != NULL and choiceInt == 2)
 			{
 				typedef int* (*MyFunctionType3)(int*, int, int, int);
 				auto CompressionFuncCircus = (MyFunctionType3)GetProcAddress(hDLLCPP, "CompressionFuncCircus");
 
 				if (CompressionFuncCircus == NULL)
 				{
-					std::cerr << "Nie udalo sie pobrac adresu funkcji z biblioteki DLL." << std::endl;
+					std::cerr << "Nie udalo sie pobrac adresu funkcji z biblioteki DLL CPP." << std::endl;
 					break;
 				}
 
-				//QImage img("C:/Users/sikor/OneDrive/Desktop/Szkola/test.bmp"); //To dzia³a i wczytuje obraz
 				QImage img(file_path.c_str());
 				if (img.isNull())
 				{
@@ -249,7 +246,6 @@ int main(int argc, char *argv[])
 				}
 				else
 				{
-					auto startTime = std::chrono::high_resolution_clock::now();
 					int bytesPerLine = img.bytesPerLine();
 					int height = img.height();
 					int segmentHeight = height / threadsToUse;
@@ -262,9 +258,8 @@ int main(int argc, char *argv[])
 					std::cout << "Width: " << width << std::endl; // 2400
 
 					auto byteDataPointer = img.bits();
+					// na tym powinienem pracowac ale nie moge bo zewnetrzne dll'ki nie maja dostepu do zmiennych Qt
 					QRgb* rgbData = (QRgb*)byteDataPointer;
-					//std::cout << "RGB data: " << qRed(*rgbData) << " " << qGreen(*rgbData) << " " << qBlue(*rgbData) << " " << qAlpha(*rgbData) << std::endl;
-
 					std::vector<int> intBMP;
 
 					for (int i = 0; i < height; i++)
@@ -285,6 +280,8 @@ int main(int argc, char *argv[])
 					calculate_optimal_sizes(intBMP.size(), threadsToUse, sizes);
 
 					int currentIdx = 0;
+					auto startTime = std::chrono::high_resolution_clock::now();
+
 					for (int j = 0; j < threadsToUse; j++)
 					{
 						int segmentSize = sizes[j];
@@ -301,6 +298,9 @@ int main(int argc, char *argv[])
 					{
 						t.join();
 					}
+
+					auto endTime = std::chrono::high_resolution_clock::now();
+					std::chrono::duration<double> duration = endTime - startTime;
 
 					int index = 0;
 					for (int i = 0; i < height; ++i)
@@ -322,8 +322,7 @@ int main(int argc, char *argv[])
 
 					img.save(savePathStr.c_str());
 
-					auto endTime = std::chrono::high_resolution_clock::now();
-					std::chrono::duration<double> duration = endTime - startTime;
+					
 					std::cout << "Filtering completed in " << duration.count() << " seconds.\n";
 
 					std::cout << "Zapisano obraz pod podana sciezka, pod nazwa outputCPP.bmp" << std::endl;
