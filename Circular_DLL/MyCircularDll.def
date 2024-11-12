@@ -1,2 +1,2 @@
 LIBRARY Circular_DLL
-EXPORTS CompressionFuncReal
+EXPORTS CompressionFuncCircus

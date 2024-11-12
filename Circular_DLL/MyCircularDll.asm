@@ -5,10 +5,11 @@
 .CODE
 
 ; V1
-CompressionFuncReal PROC
-   brightnessAdjust:
+CompressionFuncCircus PROC
+
     mov rax, rcx
-    mov r8, rdx
+    movq xmm0, r8
+    mov r12, rdx
 
     pxor xmm1, xmm1
     pcmpeqb xmm1, xmm1
@@ -21,12 +22,12 @@ loopdaloop:
     movdqu [rax], xmm2
 
     add rax, 16
-    sub r8, 4
+    sub r12, 4
     jnz loopdaloop
 
     ret
 
-CompressionFuncReal ENDP
+CompressionFuncCircus ENDP
 
 
 END 			;no entry point
