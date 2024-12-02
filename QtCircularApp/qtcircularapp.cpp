@@ -121,9 +121,13 @@ void QtCircularApp::onApplyFilterButton_clicked()
     int width = chosenImage.width();
     QImage processedImage = chosenImage;
 
+    qDebug() << "Height: " << height << "\nWidth: " << width << "\nBytes per line: " << bytesPerLine << "\nSegment height: " << segmentHeight << "\n";
+
     auto byteDataPointer = processedImage.bits();
     QRgb* rgbData = (QRgb*)byteDataPointer;
     std::vector<int> rgbDataSegments;
+
+	qDebug() << "RGB data size: " << width * height << "\n";
 
     for (int i = 0; i < height; i++)
     {
@@ -133,6 +137,7 @@ void QtCircularApp::onApplyFilterButton_clicked()
         }
     }
 
+	std::vector<int> rgbDataSegmentsCopy = rgbDataSegments;
     std::vector<std::thread> threads;
     std::vector<int> sizes;
     calculate_optimal_sizes(rgbDataSegments.size(), threadsToUse, sizes);
@@ -148,6 +153,7 @@ void QtCircularApp::onApplyFilterButton_clicked()
 
 			threads.emplace_back([this, &rgbDataSegments, currentIdx, segmentSize, width, segmentHeight]()
 				{
+                    //              RCX                         RDX        R8         R9
 					filterFunc(&rgbDataSegments[currentIdx], segmentSize, width, segmentHeight);
 				});
 
@@ -161,6 +167,7 @@ void QtCircularApp::onApplyFilterButton_clicked()
 		}
 
 		auto endTime = std::chrono::high_resolution_clock::now();
+        //HERE LIES THE DURATION OF THE ALGORITHM
         std::chrono::duration<double> duration = endTime - startTime;
 
         int index = 0;
@@ -201,6 +208,7 @@ void QtCircularApp::onApplyFilterButton_clicked()
         }
 
         auto endTime = std::chrono::high_resolution_clock::now();
+        //HERE LIES THE DURATION OF THE ALGORITHM
         std::chrono::duration<double> duration = endTime - startTime;
 
 
