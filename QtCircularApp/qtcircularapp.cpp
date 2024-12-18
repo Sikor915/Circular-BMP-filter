@@ -6,25 +6,43 @@
 
 void QtCircularApp::calculate_optimal_sizes(int totalSize, int numThreads, std::vector<int>& sizes)
 {
-    int baseSize = totalSize / numThreads;
-    int remainder = totalSize % numThreads;
+	int baseSize = totalSize / numThreads;
+	int remainder = totalSize % numThreads;
 
-    for (int i = 0; i < numThreads; ++i)
-    {
-        sizes.push_back(baseSize + (remainder > 0 ? 1 : 0));
-        if (remainder > 0) remainder--;
-    }
+	for (int i = 0; i < numThreads; ++i)
+	{
+		sizes.push_back(baseSize + (remainder > 0 ? 1 : 0));
+		if (remainder > 0) remainder--;
+	}
 }
 
-QtCircularApp::QtCircularApp(QWidget *parent)
-    : QWidget(parent)
+QImage QtCircularApp::crop(const QImage& image)
 {
-    ui.setupUi(this);
-    ui.threadNumberLabel->setText("Number of threads: " + QString::number(threadsToUse));
-    connect(ui.libChooseButton, &QPushButton::clicked, this, &QtCircularApp::onLibChooseButton_clicked);
+	int currentWidth = image.width();
+	int currentHeight = image.height();
+
+	int newWidth = (currentWidth / 4) * 4;
+
+	if (newWidth == currentWidth) {
+		return image; 
+	}
+
+	// Define the cropping rectangle
+	QRect cropRect(0, 0, newWidth, currentHeight);
+
+	// Crop the image using the defined rectangle
+	return image.copy(cropRect);
+}
+
+QtCircularApp::QtCircularApp(QWidget* parent)
+	: QWidget(parent)
+{
+	ui.setupUi(this);
+	ui.threadNumberLabel->setText("Number of threads: " + QString::number(threadsToUse));
+	connect(ui.libChooseButton, &QPushButton::clicked, this, &QtCircularApp::onLibChooseButton_clicked);
 	connect(ui.pathChooseButton, &QPushButton::clicked, this, &QtCircularApp::onPathChooseButton_clicked);
 	connect(ui.threadChooseButton, &QPushButton::clicked, this, &QtCircularApp::onThreadChooseButton_clicked);
-    connect(ui.filterApplyButton, &QPushButton::clicked, this, &QtCircularApp::onApplyFilterButton_clicked);
+	connect(ui.filterApplyButton, &QPushButton::clicked, this, &QtCircularApp::onApplyFilterButton_clicked);
 }
 
 QtCircularApp::~QtCircularApp()
@@ -32,203 +50,269 @@ QtCircularApp::~QtCircularApp()
 
 }
 
+
+
 void QtCircularApp::onLibChooseButton_clicked() {
-    QStringList libraries = { "ASM Library", "C++ Library" };
-    bool ok;
-    QString choice = QInputDialog::getItem(this, "Choose Library", "Library:", libraries, 0, false, &ok);
+	QStringList libraries = { "ASM Library", "C++ Library" };
+	bool ok;
+	QString choice = QInputDialog::getItem(this, "Choose Library", "Library:", libraries, 0, false, &ok);
 
-    if (ok && !choice.isEmpty())
-    {
-        QString libPath;
-        if (choice == "ASM Library")
-        {
-            qDebug() << "ASM Library selected.";
-            libPath = "C:\\Users\\sikor\\source\\repos\\QtCircularSOL\\x64\\Debug\\Circular_DLL.dll";
-            chosenLib = 1;
-            ui.chosenLibLabel->setText("Chosen library: ASM");
-        }
-        else if (choice == "C++ Library")
-        {
-            qDebug() << "C++ Library selected.";
-            libPath = "C:\\Users\\sikor\\source\\repos\\QtCircularSOL\\x64\\Debug\\Circus.dll";
+	if (ok && !choice.isEmpty())
+	{
+		QString libPath;
+		if (choice == "ASM Library")
+		{
+			qDebug() << "ASM Library selected.";
+			libPath = "..\\x64\\Debug\\Circular_DLL.dll";
+			chosenLib = 1;
+			ui.chosenLibLabel->setText("Chosen library: ASM");
+		}
+		else if (choice == "C++ Library")
+		{
+			qDebug() << "C++ Library selected.";
+			libPath = "..\\x64\\Debug\\Circus.dll";
 			chosenLib = 2;
-            ui.chosenLibLabel->setText("Chosen library: CPP");
-        }
+			ui.chosenLibLabel->setText("Chosen library: CPP");
+		}
 
-        library.setFileName(libPath);
-        if (!library.load())
-        {
-            qDebug() << "Could not load library." << library.errorString();
-            return;
-        }
-        else
-        {
-            qDebug() << "Library loaded successfully.";
-        }
+		library.setFileName(libPath);
+		if (!library.load())
+		{
+			qDebug() << "Could not load library." << library.errorString();
+			return;
+		}
+		else
+		{
+			qDebug() << "Library loaded successfully.";
+		}
 
-        filterFunc = (CircusFunc)library.resolve("CompressionFuncCircus");
-        if (filterFunc)
-        {
-            qDebug() << "Function resolved successfully.";
-        }
-        else
-        {
-            qDebug() << "Could not resolve function.";
-        }
-    }
+		filterFunc = (CircusFunc)library.resolve("CompressionFuncCircus");
+		if (filterFunc)
+		{
+			qDebug() << "Function resolved successfully.";
+		}
+		else
+		{
+			qDebug() << "Could not resolve function.";
+		}
+	}
 }
 
-void QtCircularApp::onPathChooseButton_clicked() 
+void QtCircularApp::onPathChooseButton_clicked()
 {
-    QString filePath = QFileDialog::getOpenFileName(this, tr("Choose Image"), "", tr("Image Files (*.bmp)"));
-    if (!filePath.isEmpty()) 
-    {
-        chosenImage = QImage(filePath);
+	QString filePath = QFileDialog::getOpenFileName(this, tr("Choose Image"), "", tr("Image Files (*.bmp)"));
+	if (!filePath.isEmpty())
+	{
+		chosenImage = crop(QImage(filePath));
+
 		imagePath = filePath.toStdString();
-        if (chosenImage.isNull()) 
-        {
-            QMessageBox::critical(this, "Error", "Failed to load image");
-            return;
-        }
+		if (chosenImage.isNull())
+		{
+			QMessageBox::critical(this, "Error", "Failed to load image");
+			return;
+		}
 		QGraphicsScene* scene = new QGraphicsScene(this);
-        scene->addPixmap(QPixmap::fromImage(chosenImage).scaled(ui.chosenImg->size(), Qt::KeepAspectRatio));
+		scene->addPixmap(QPixmap::fromImage(chosenImage).scaled(ui.chosenImg->size(), Qt::KeepAspectRatio));
 		ui.chosenImg->setScene(scene);
-    }
+	}
 }
 
 void QtCircularApp::onThreadChooseButton_clicked()
 {
-    bool ok;
-    int threads = QInputDialog::getInt(this, tr("Choose Threads"), tr("Number of Threads:"), 4, 1, 64, 1, &ok);
-    if (ok) 
-    {
-        threadsToUse = threads;
-        ui.threadNumberLabel->setText("Number of threads: " + QString::number(threadsToUse));
-    }
+	bool ok;
+	int threads = QInputDialog::getInt(this, tr("Choose Threads"), tr("Number of Threads:"), 4, 1, 64, 1, &ok);
+	if (ok)
+	{
+		threadsToUse = threads;
+		ui.threadNumberLabel->setText("Number of threads: " + QString::number(threadsToUse));
+	}
 }
 
 void QtCircularApp::onApplyFilterButton_clicked()
 {
-    if (chosenImage.isNull() || !filterFunc) 
-    {
-        QMessageBox::warning(this, "Error", "Please load an image and select a library");
-        return;
-    }
-
-    int bytesPerLine = chosenImage.bytesPerLine();
-    int height = chosenImage.height();
-    int segmentHeight = height / threadsToUse;
-    int width = chosenImage.width();
-    QImage processedImage = chosenImage;
-
-    qDebug() << "Height: " << height << "\nWidth: " << width << "\nBytes per line: " << bytesPerLine << "\nSegment height: " << segmentHeight << "\n";
-
-    auto byteDataPointer = processedImage.bits();
-    QRgb* rgbData = (QRgb*)byteDataPointer;
-    std::vector<int> rgbDataSegments;
-
-	qDebug() << "RGB data size: " << width * height << "\n";
-
-    for (int i = 0; i < height; i++)
-    {
-        for (int j = 0; j < width; j++)
-        {
-            rgbDataSegments.push_back(rgbData[i * width + j]);
-        }
-    }
-
-	std::vector<int> rgbDataSegmentsCopy = rgbDataSegments;
-    std::vector<std::thread> threads;
-    std::vector<int> sizes;
-    calculate_optimal_sizes(rgbDataSegments.size(), threadsToUse, sizes);
-
-    if (chosenLib == 1)
+	//V3
+	/*
+	if (chosenImage.isNull() || !filterFunc)
 	{
-		auto startTime = std::chrono::high_resolution_clock::now();
+		QMessageBox::warning(this, "Error", "Please load an image and select a library");
+		return;
+	}
 
-		int currentIdx = 0;
-		for (int j = 0; j < threadsToUse; j++)
+	const int padding = 2;
+	int bytesPerLine = chosenImage.bytesPerLine();
+	int heightOG = chosenImage.height();
+	int segmentHeightOG = heightOG / threadsToUse;
+	int widthOG = chosenImage.width();
+	QImage processedImage = chosenImage;
+
+	qDebug() << "Height: " << heightOG << "\nWidth: " << widthOG << "\nBytes per line: " << bytesPerLine << "\nSegment height: " << segmentHeightOG << "\n";
+
+	auto byteDataPointer = processedImage.bits();
+	QRgb* rgbData = (QRgb*)byteDataPointer;
+	std::vector<int> processedImageRGBData;
+
+	qDebug() << "RGB data size: " << widthOG * heightOG << "\n";
+
+	for (int i = 0; i < heightOG; i++)
+	{
+		for (int j = 0; j < widthOG; j++)
 		{
-			int segmentSize = sizes[j];
-
-			threads.emplace_back([this, &rgbDataSegments, currentIdx, segmentSize, width, segmentHeight]()
-				{
-                    //              RCX                         RDX        R8         R9
-					filterFunc(&rgbDataSegments[currentIdx], segmentSize, width, segmentHeight);
-				});
-
-			currentIdx += segmentSize;
-
+			processedImageRGBData.push_back(rgbData[i * widthOG + j]);
 		}
+	}
 
-		for (auto& t : threads)
+	std::vector<std::thread> threads;
+	std::vector<int> sizes;
+	calculate_optimal_sizes(processedImageRGBData.size(), threadsToUse, sizes);
+
+	auto startTime = std::chrono::high_resolution_clock::now();
+
+	int currentIdx = 0;
+	for (int j = 0; j < threadsToUse; j++)
+	{
+		int segmentSize = sizes[j];
+
+		threads.emplace_back([this, &processedImageRGBData, currentIdx, segmentSize, widthOG, segmentHeightOG]()
+			{
+				//              RCX								 RDX		  R8           R9
+				filterFunc(&processedImageRGBData[currentIdx], segmentSize, widthOG, segmentHeightOG);
+			});
+
+		currentIdx += segmentSize;
+
+	}
+
+	for (auto& t : threads)
+	{
+		t.join();
+	}
+
+	auto endTime = std::chrono::high_resolution_clock::now();
+	//HERE LIES THE DURATION OF THE ASM ALGORITHM
+	std::chrono::duration<double> duration = endTime - startTime;
+
+	//In seconds rounded
+	double rounded = std::round(duration.count() * 10000.0) / 10000.0;
+
+	int index = 0;
+	for (int i = 0; i < heightOG; ++i)
+	{
+		for (int j = 0; j < widthOG; ++j)
 		{
-			t.join();
+			rgbData[i * widthOG + j] = processedImageRGBData[i * widthOG + j];
 		}
+	}
 
-		auto endTime = std::chrono::high_resolution_clock::now();
-        //HERE LIES THE DURATION OF THE ALGORITHM
-        std::chrono::duration<double> duration = endTime - startTime;
+	QString message = QString("Elapsed time: %1 seconds")
+		.arg(rounded, 0, 'f', 4);
 
-        int index = 0;
-        for (int i = 0; i < height; ++i)
-        {
-            for (int j = 0; j < width; ++j)
-            {
-                rgbData[i * width + j] = rgbDataSegments[i * width + j];
-            }
-        }
+	QMessageBox::information(this, "Success", "Filter applied successfully. " + message);
 
-        QMessageBox::information(this, "Success", "Filter applied successfully");
+	if (chosenLib == 1) processedImage.save((imagePath.remove_filename().string() + "outputASM.bmp").c_str());
+	else if (chosenLib == 2) processedImage.save((imagePath.remove_filename().string() + "outputCPP.bmp").c_str());
 
-        processedImage.save((imagePath.remove_filename().string() + "outputASM.bmp").c_str());
+	QGraphicsScene* scene = new QGraphicsScene(this);
+	scene->addPixmap(QPixmap::fromImage(processedImage).scaled(ui.filteredImg->size(), Qt::KeepAspectRatio));
+	ui.filteredImg->setScene(scene);
+	*/
+	//V4
+	if (chosenImage.isNull() || !filterFunc)
+	{
+		QMessageBox::warning(this, "Error", "Please load an image and select a library");
+		return;
+	}
 
-    }
-	else if (chosenLib == 2)
-    {
-        auto startTime = std::chrono::high_resolution_clock::now();
+	const int padding = 2; // Add 2-pixel black border
+	int widthOG = chosenImage.width();
+	int heightOG = chosenImage.height();
+	int paddedWidth = widthOG + 2 * padding;
+	int paddedHeight = heightOG + 2 * padding;
 
-        int currentIdx = 0;
-        for (int j = 0; j < threadsToUse; j++)
-        {
-            int segmentSize = sizes[j];
+	// Create a padded image
+	QImage paddedImage(paddedWidth, paddedHeight, chosenImage.format());
+	paddedImage.fill(Qt::black);
 
-            threads.emplace_back([this, &rgbDataSegments, currentIdx, segmentSize, width, segmentHeight]()
-                {
-                    filterFunc(&rgbDataSegments[currentIdx], segmentSize, width, segmentHeight);
-                });
+	// Draw the original image onto the padded image
+	QPainter painter(&paddedImage);
+	painter.drawImage(QPoint(padding, padding), chosenImage);
+	painter.end();
 
-            currentIdx += segmentSize;
+	int bytesPerLine = paddedImage.bytesPerLine();
+	QImage processedImage = paddedImage;
 
-        }
+	qDebug() << "Original Height: " << heightOG << "\nOriginal Width: " << widthOG
+		<< "\nPadded Height: " << paddedHeight << "\nPadded Width: " << paddedWidth
+		<< "\nBytes per line: " << bytesPerLine;
 
-        for (auto& t : threads)
-        {
-            t.join();
-        }
+	auto byteDataPointer = processedImage.bits();
+	QRgb* rgbData = reinterpret_cast<QRgb*>(byteDataPointer);
+	std::vector<int> processedImageRGBData;
 
-        auto endTime = std::chrono::high_resolution_clock::now();
-        //HERE LIES THE DURATION OF THE ALGORITHM
-        std::chrono::duration<double> duration = endTime - startTime;
+	qDebug() << "RGB data size (padded): " << paddedWidth * paddedHeight << "\n";
+
+	for (int i = 0; i < paddedHeight; i++)
+	{
+		for (int j = 0; j < paddedWidth; j++)
+		{
+			processedImageRGBData.push_back(rgbData[i * paddedWidth + j]);
+		}
+	}
+
+	std::vector<std::thread> threads;
+	std::vector<int> sizes;
+
+	calculate_optimal_sizes(processedImageRGBData.size(), threadsToUse, sizes);
 
 
+	auto startTime = std::chrono::high_resolution_clock::now();
 
-        int index = 0;
-        for (int i = 0; i < height; ++i)
-        {
-            for (int j = 0; j < width; ++j)
-            {
-                rgbData[i * width + j] = rgbDataSegments[i * width + j];
-            }
-        }
+	int currentIdx = 0;
+	for (int j = 0; j < threadsToUse; j++)
+	{
+		int segmentSize = sizes[j];
 
-        QMessageBox::information(this, "Success", "Filter applied successfully");
+		threads.emplace_back([this, &processedImageRGBData, currentIdx, segmentSize, paddedWidth, heightOG]()
+			{
+				//              RCX								 RDX		  R8           R9
+				filterFunc(&processedImageRGBData[currentIdx], segmentSize, paddedWidth, heightOG);
+			});
 
-        processedImage.save((imagePath.remove_filename().string() + "outputCPP.bmp").c_str());
+		currentIdx += segmentSize;
+	}
 
-    }
+	for (auto& t : threads)
+	{
+		t.join();
+	}
 
-    QGraphicsScene* scene = new QGraphicsScene(this);
-    scene->addPixmap(QPixmap::fromImage(processedImage).scaled(ui.filteredImg->size(), Qt::KeepAspectRatio));
-    ui.filteredImg->setScene(scene);
+	auto endTime = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> duration = endTime - startTime;
+
+	// Remove padding and rebuild the original-size image
+	QImage finalImage(widthOG, heightOG, paddedImage.format());
+	int index = 0;
+	for (int i = padding; i < padding + heightOG; ++i)
+	{
+		for (int j = padding; j < padding + widthOG; ++j)
+		{
+			int paddedIdx = i * paddedWidth + j;
+			finalImage.setPixelColor(index % widthOG, index / widthOG, QColor::fromRgb(processedImageRGBData[paddedIdx]));
+			++index;
+		}
+	}
+
+	// Show elapsed time
+	double rounded = std::round(duration.count() * 10000.0) / 10000.0;
+	QString message = QString("Elapsed time: %1 seconds").arg(rounded, 0, 'f', 4);
+
+	QMessageBox::information(this, "Success", "Filter applied successfully. " + message);
+
+	// Save the final processed image
+	if (chosenLib == 1) finalImage.save((imagePath.remove_filename().string() + "outputASM.bmp").c_str());
+	else if (chosenLib == 2) finalImage.save((imagePath.remove_filename().string() + "outputCPP.bmp").c_str());
+
+	// Display the final image in the UI
+	QGraphicsScene* scene = new QGraphicsScene(this);
+	scene->addPixmap(QPixmap::fromImage(finalImage).scaled(ui.filteredImg->size(), Qt::KeepAspectRatio));
+	ui.filteredImg->setScene(scene);
 }

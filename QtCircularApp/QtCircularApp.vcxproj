@@ -62,7 +62,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -72,6 +72,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>C:\Users\sikor\source\repos\QtCircularSOL\Circus;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>None</DebugInformationFormat>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -105,7 +106,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <QtMoc>

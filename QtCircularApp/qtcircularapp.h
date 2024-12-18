@@ -5,6 +5,7 @@
 #include "ui_qtcircularapp.h"
 #include <QLibrary>
 #include <filesystem>
+#include <cmath>
 
 typedef int* (*CircusFunc)(int*, int, int, int);
 
@@ -16,7 +17,8 @@ public:
 	explicit QtCircularApp(QWidget* parent = nullptr);
     ~QtCircularApp();
 	void calculate_optimal_sizes(int totalSize, int numThreads, std::vector<int>& sizes);
-
+    QImage crop(const QImage& image);
+    
 private:
     Ui::QtCircularAppClass ui;
     QLibrary library;

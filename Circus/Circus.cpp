@@ -17,11 +17,11 @@ void CompressionFuncCircus(int* pixelData, int size, int width, int height)
     };
 
     int rowBytes = width;
+    const int filterCount = 25;
 
     for (int i = 0; i < size; i++)
     {
         int redSum = 0, greenSum = 0, blueSum = 0;
-        int filterCount = 0;
 
         int row = i / width;
         int col = i % width;
@@ -47,7 +47,6 @@ void CompressionFuncCircus(int* pixelData, int size, int width, int height)
                     redSum += red;
                     greenSum += green;
                     blueSum += blue;
-                    filterCount++;
                 }
             }
         }
