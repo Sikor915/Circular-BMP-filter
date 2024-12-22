@@ -10,4 +10,4 @@
 #endif
 
 extern "C" CIRCUS_API void Circus(long long x, long long y);
-extern "C" CIRCUS_API void CompressionFuncCircus(int* pixelData, int size, int width, int height);
+extern "C" CIRCUS_API void CompressionFuncCircus(int*, int, int, const int*);
