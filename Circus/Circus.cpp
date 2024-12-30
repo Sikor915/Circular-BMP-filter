@@ -1,11 +1,6 @@
 #include "pch.h"
 #include "Circus.h"
 
-void Circus(long long x, long long y)
-{
-	std::cout << "Circus function called with arguments: " << x << " and " << y << std::endl;
-}
-
 void CompressionFuncCircus(int* pixelData, int size, int width, const int* endPixelAddress) 
 {
     int height = size / width;

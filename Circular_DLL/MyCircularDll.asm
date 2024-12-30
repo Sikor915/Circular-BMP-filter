@@ -1,16 +1,12 @@
 ;-------------------------------------------------------------------------
 ;.586
 ;include \masm32\include\windows.inc
-.DATA
-inv_21 dd 0.0476190
-
-.CODE
-
 ; V3
-; RCX -> RAX -> R12 - rgbDataSegments[currentIdx] - pointer na info o pikselach
-; RDX -> R13        - segmentSize                 - rozmiar vectora do przejścia
-; R8                - width                       - szerokość paska przez który prrzechodzi wątek
-; R9                - endPixelAddress             - pointer na ostatni piksel który musi być przetworzony
+; RCX -> RAX -> R12 - rgbDataSegments[currentIdx] - pixel data pointer
+; RDX -> R13        - segmentSize                 - the size of the vector a thread must go through
+; R8                - width                       - the width of the image
+; R9                - endPixelAddress             - pointer to the last pixel to be processed
+.CODE
 CompressionFuncCircus PROC
 
 setup:
@@ -24,9 +20,10 @@ setup:
     ; r8 = width
     ; r9 = endPixelAddress
 
-    xor rbx, rbx          ; rbx = 0 (licznik pętli)
+    xor rbx, rbx          ; rbx = 0 (loop counter)
 
-	movaps xmm11, [inv_21]
+    mov eax, 3120
+    movd xmm11, eax
     pshufd xmm11, xmm11, 0
 
     mov eax, 255
@@ -40,16 +37,15 @@ loop_pixels:
     cmp rbx, r13          
     jge end_loop
 
-    lea rdi, [r12 + rbx * 4]  ; Pełny adres bieżącego piksela
+    lea rdi, [r12 + rbx * 4]  ; Current pixel address
     cmp rdi, r9
     jge end_loop
 
-    ; Wyczyszczenie akumulatorów R, G, B
+    ; Clear R, G, B accumulators
     pxor xmm1, xmm1
     pxor xmm2, xmm2
     pxor xmm3, xmm3
 
-    ; Lista sąsiadów w 5x5 (bez rogów):
     ;           - (-2, -1), (-2, 0), (-2, 1)
     ; - (-1, -2), (-1, -1), (-1, 0), (-1, 1), (-1, 2)
     ; - ( 0, -2), ( 0, -1), (0, 0),  ( 0, 1), ( 0, 2)
@@ -185,22 +181,16 @@ loop_pixels:
 
     pslld xmm5, 24
 
-    ; Przetwarzanie zakończone, normalizacja
-    cvtdq2ps xmm1, xmm1   ; Konwersja R na float
-    mulps xmm1, xmm11    ; Normalizacja
+    ; Normalization
+    pmulld xmm1, xmm11
+    pmulld xmm2, xmm11
+    pmulld xmm3, xmm11
 
-	cvtdq2ps xmm2, xmm2   ; Konwersja G na float
-    mulps xmm2, xmm11    ; NNormalizacja
-    
-	cvtdq2ps xmm3, xmm3   ; Konwersja B na float
-    mulps xmm3, xmm11    ; Normalizacja
-    
+    psrad xmm1, 16
+    psrad xmm2, 16
+    psrad xmm3, 16
 
-    cvtps2dq xmm1, xmm1   ; Konwersja R na int
-	cvtps2dq xmm2, xmm2   ; Konwersja G na int
-	cvtps2dq xmm3, xmm3   ; Konwersja B na int
-
-    ; Połączenie RGB
+    ; Glue the channels together
     pslld xmm1, 16
     pslld xmm2, 8 
     por xmm1, xmm2
@@ -209,12 +199,12 @@ loop_pixels:
 
     psrld xmm5, 24
 
-    ; Zapisanie wyniku
+    ; Save
     movdqu xmmword ptr [r12 + rbx * 4], xmm1
 
-    add rbx, 4
     ; Compare rbx to image width, and add another 4 if it's bigger than the width
     ; Do the countdown (decrement width by 4) and check if it's bigger than 0
+    add rbx, 4
 	sub r14, 4
     jg loop_pixels
     add rbx, 4            ; Add 4 to the pixel index to skip edges

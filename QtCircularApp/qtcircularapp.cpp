@@ -22,15 +22,16 @@ QImage QtCircularApp::padImage(const QImage& image)
 	int height = image.height();
 	int newWidth = (width + 3) & ~3; // Round up to the nearest multiple of 4
 
-	if (width == newWidth) {
-		// Already aligned, return the original image
+	if (width == newWidth) 
+	{
 		return image;
 	}
 
 	QImage alignedImage(newWidth, height, image.format());
 
 	// Copy pixel data row by row
-	for (int row = 0; row < height; ++row) {
+	for (int row = 0; row < height; ++row) 
+	{
 		const uchar* srcLine = image.scanLine(row);
 		uchar* destLine = alignedImage.scanLine(row);
 
@@ -39,7 +40,8 @@ QImage QtCircularApp::padImage(const QImage& image)
 
 		// Duplicate the last column into the new pixels
 		const uchar* lastPixel = srcLine + (width - 1) * bytesPerPixel;
-		for (int i = width; i < newWidth; ++i) {
+		for (int i = width; i < newWidth; ++i) 
+		{
 			memcpy(destLine + i * bytesPerPixel, lastPixel, bytesPerPixel);
 		}
 	}
@@ -202,7 +204,7 @@ void QtCircularApp::onApplyFilterButton_clicked()
 	int currentIdx = (2 * widthOG) + 2;
 	for (int j = 0; j < threadsToUse; j++)
 	{
-		int segmentSize = sizes[j];			         // 1 after the last | last | 2 rows above | 2 pixels left
+		int segmentSize = sizes[j];			                         // 1 after the last | last | 2 rows above | 2 pixels left
 		const int* endPixelAddress = &processedImageRGBData.at(processedImageRGBData.size() - 1 - (2 * widthOG) - 2);
 		threads.emplace_back([this, &processedImageRGBData, currentIdx, segmentSize, widthOG, endPixelAddress]()
 			{
