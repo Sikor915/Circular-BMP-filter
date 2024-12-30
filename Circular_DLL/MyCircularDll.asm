@@ -9,6 +9,38 @@
 .CODE
 CompressionFuncCircus PROC
 
+ProcessNeigbor macro vert, horiz
+
+    mov rcx, horiz
+    mov rax, vert
+    imul rax, r8          ; rax = vert * width
+    add rax, rcx        ; rax = (vert * width) + horiz
+
+    ; Adjust the current pixel address
+    lea rdi, [r12 + rbx * 4] 
+    add rdi, rax
+
+    ; Load the neighbor pixel
+    movdqu xmm4, xmmword ptr [rdi]
+    
+    movdqa xmm7, xmm4
+    pand xmm7, xmm5 ; B
+    paddd xmm3, xmm7  
+
+    psrld xmm4, 8
+    movdqa xmm7, xmm4
+    pand xmm7, xmm5 ; G
+    paddd xmm2, xmm7
+
+    psrld xmm4, 8
+    movdqa xmm7, xmm4
+    pand xmm7, xmm5 ; R
+    paddd xmm1, xmm7
+
+    pxor xmm4, xmm4       ; Clear the register
+
+endm
+
 setup:
     push r12
     push r13
@@ -52,132 +84,29 @@ loop_pixels:
     ; - ( 1, -2), ( 1, -1), ( 1, 0), ( 1, 1), ( 1, 2)
     ;           - ( 2, -1), ( 2, 0), ( 2, 1)
 
-    ; Sąsiedzi według maski 5x5 bez rogów
-    mov rax, -8
-    push rax
-    mov rax, -4
-    push rax
-    call PROCESS_NEIGHBOR
+    ; 5x5 Circular Filter (every index needs to be multiplied by 4)
 
-    mov rax, -8
-    push rax
-    mov rax, 0
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, -8
-    push rax
-    mov rax, 4
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, -4
-    push rax
-    mov rax, -8
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, -4
-    push rax
-    mov rax, -4
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, -4
-    push rax
-    mov rax, 0
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, -4
-    push rax
-    mov rax, 4
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, -4
-    push rax
-    mov rax, 8
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 0
-    push rax
-    mov rax, -8
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 0
-    push rax
-    mov rax, -4
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 0
-    push rax
-    mov rax, 0
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 0
-    push rax
-    mov rax, 4
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 0
-    push rax
-    mov rax, 8
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 4
-    push rax
-    mov rax, -8
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 4
-    push rax
-    mov rax, -4
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 4
-    push rax
-    mov rax, 0
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 4
-    push rax
-    mov rax, 4
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 4
-    push rax
-    mov rax, 8
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 8
-    push rax
-    mov rax, -4
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 8
-    push rax
-    mov rax, 0
-    push rax
-    call PROCESS_NEIGHBOR
-
-    mov rax, 8
-    push rax
-    mov rax, 4
-    push rax
-    call PROCESS_NEIGHBOR
+    ProcessNeigbor -8, -4
+    ProcessNeigbor -8, 0
+    ProcessNeigbor -8, 4
+    ProcessNeigbor -4, -8
+    ProcessNeigbor -4, -4
+    ProcessNeigbor -4, 0
+    ProcessNeigbor -4, 4
+    ProcessNeigbor -4, 8
+    ProcessNeigbor 0, -8
+    ProcessNeigbor 0, -4
+    ProcessNeigbor 0, 0
+    ProcessNeigbor 0, 4
+    ProcessNeigbor 0, 8
+    ProcessNeigbor 4, -8
+    ProcessNeigbor 4, -4
+    ProcessNeigbor 4, 0
+    ProcessNeigbor 4, 4
+    ProcessNeigbor 4, 8
+    ProcessNeigbor 8, -4
+    ProcessNeigbor 8, 0
+    ProcessNeigbor 8, 4
 
     pslld xmm5, 24
 
@@ -220,43 +149,5 @@ end_loop:
     ret
 
 CompressionFuncCircus ENDP
-
-; Procedura do przetwarzania jednego sąsiada
-PROCESS_NEIGHBOR proc
-    
-    pop rax ; Back address
-    pop rcx ; Horizontal movement
-    pop r15 ; Vertical movement
-    push rax
-
-    mov rax, r15
-    imul rax, r8          ; rax = vert * padded_width
-    add rax, rcx        ; rax = (vert * padded_width) + horiz
-
-    ; Adjust the current pixel address
-    lea rdi, [r12 + rbx * 4] 
-    add rdi, rax
-
-    ; Load the neighbor pixel
-    ; rdi = address of current pixel
-    movdqu xmm4, xmmword ptr [rdi]
-    
-    movdqa xmm7, xmm4
-    pand xmm7, xmm5 ; B
-    paddd xmm3, xmm7  
-
-    psrld xmm4, 8
-    movdqa xmm7, xmm4
-    pand xmm7, xmm5 ; G
-    paddd xmm2, xmm7
-
-    psrld xmm4, 8
-    movdqa xmm7, xmm4
-    pand xmm7, xmm5 ; R
-    paddd xmm1, xmm7
-
-    pxor xmm4, xmm4       ; Clear the register
-    ret
-PROCESS_NEIGHBOR endp
 
 END
