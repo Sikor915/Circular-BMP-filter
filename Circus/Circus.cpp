@@ -1,19 +1,15 @@
 #include "pch.h"
 #include "Circus.h"
 
-void CompressionFuncCircus(int* pixelData, int size, int width, const int* endPixelAddress) 
+void CompressionFuncCircus(int* pixelData, int rowsToProcess, int width, const int* endPixelAddress) 
 {
-    int height = size / width;
-
-    // Start processing from pixelData, which points to (2,2)
-    for (int row = 0; row < height; ++row) 
+    for (int row = 0; row < rowsToProcess; ++row) 
     {
         for (int col = 2; col < width - 2; ++col) 
         {
             // Calculate the current pixel's address
             int* currentPixelAddress = pixelData + ((row) * width + (col-2));
 
-            // Stop processing if we reach or exceed the endPixelAddress
             if (currentPixelAddress > endPixelAddress)
                 return;
 

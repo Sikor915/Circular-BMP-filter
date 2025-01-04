@@ -17,6 +17,7 @@ public:
 	explicit QtCircularApp(QWidget* parent = nullptr);
     ~QtCircularApp();
 	void calculate_optimal_sizes(int totalSize, int numThreads, std::vector<int>& sizes);
+	void calculate_optimal_heights(int imgHeight, int numThreads, std::vector<int>& heights);
     QImage padImage(const QImage& image);
     
 private:

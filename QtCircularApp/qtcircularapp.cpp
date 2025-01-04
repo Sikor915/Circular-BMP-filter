@@ -16,6 +16,17 @@ void QtCircularApp::calculate_optimal_sizes(int totalSize, int numThreads, std::
 	}
 }
 
+void QtCircularApp::calculate_optimal_heights(int imgHeight, int numThreads, std::vector<int>& heights)
+{
+	int baseHeight = imgHeight / numThreads;
+	int remainder = imgHeight % numThreads;
+	for (int i = 0; i < numThreads; ++i)
+	{
+		heights.push_back(baseHeight + (remainder > 0 ? 1 : 0));
+		if (remainder > 0) remainder--;
+	}
+}
+
 QImage QtCircularApp::padImage(const QImage& image)
 {
 	int width = image.width();
@@ -196,22 +207,32 @@ void QtCircularApp::onApplyFilterButton_clicked()
 	}
 
 	std::vector<std::thread> threads;
-	std::vector<int> sizes;
-	calculate_optimal_sizes(innerDataVec.size(), threadsToUse, sizes);
+	std::vector<int> sizes, heights;
+	//calculate_optimal_sizes(innerDataVec.size(), threadsToUse, sizes);
+	calculate_optimal_heights(heightOG, threadsToUse, heights);
 
 	auto startTime = std::chrono::high_resolution_clock::now();
 
 	int currentIdx = (2 * widthOG) + 2;
 	for (int j = 0; j < threadsToUse; j++)
 	{
-		int segmentSize = sizes[j];			                         // 1 after the last | last | 2 rows above | 2 pixels left
+		/*int segmentSize = sizes[j];			                         // 1 after the last | last | 2 rows above | 2 pixels left = (widthOG - 2, heightOG - 2)
 		const int* endPixelAddress = &processedImageRGBData.at(processedImageRGBData.size() - 1 - (2 * widthOG) - 2);
 		threads.emplace_back([this, &processedImageRGBData, currentIdx, segmentSize, widthOG, endPixelAddress]()
 			{
 				//              RCX								 RDX		  R8           R9
 				filterFunc(&processedImageRGBData[currentIdx], segmentSize, widthOG, endPixelAddress);
 			});
-		currentIdx += segmentSize;
+		currentIdx += segmentSize;*/
+		int rowsToProcess = heights[j];			                      // 1 after the last | last | 2 rows above | 2 pixels left = (widthOG - 2, heightOG - 2)
+		const int* endPixelAddress = &processedImageRGBData.at(processedImageRGBData.size() - 1 - (2 * widthOG) - 2);
+		threads.emplace_back([this, &processedImageRGBData, currentIdx, rowsToProcess, widthOG, endPixelAddress]()
+			{
+				//              RCX								 RDX		  R8           R9
+				filterFunc(&processedImageRGBData[currentIdx], rowsToProcess, widthOG, endPixelAddress);
+			});
+		currentIdx += rowsToProcess * widthOG;
+
 	}
 
 	for (auto& t : threads)
@@ -238,7 +259,7 @@ void QtCircularApp::onApplyFilterButton_clicked()
 	QString message = QString("Elapsed time: %1 seconds")
 		.arg(rounded, 0, 'f', 4);
 
-	QMessageBox::information(this, "Success", "Filter applied successfully. " + message);
+	QMessageBox::information(this, "Success", "Filter applied successfully. " + message + ". Processed image is in the same directory as provided.");
 
 	if (chosenLib == 1) processedImage.save((imagePath.remove_filename().string() + "outputASM.bmp").c_str());
 	else if (chosenLib == 2) processedImage.save((imagePath.remove_filename().string() + "outputCPP.bmp").c_str());

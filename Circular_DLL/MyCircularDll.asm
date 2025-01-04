@@ -3,7 +3,7 @@
 ;include \masm32\include\windows.inc
 ; V3
 ; RCX -> RAX -> R12 - rgbDataSegments[currentIdx] - pixel data pointer
-; RDX -> R13        - segmentSize                 - the size of the vector a thread must go through
+; RDX -> R13        - segmentSize/rowsToProcess   - the size of the vector a thread must go through/number of rows to process
 ; R8                - width                       - the width of the image
 ; R9                - endPixelAddress             - pointer to the last pixel to be processed
 .CODE
@@ -66,8 +66,11 @@ setup:
     sub r14, 4
 
 loop_pixels:
-    cmp rbx, r13          
-    jge end_loop
+    ;cmp rbx, r13   ;compare with segmentSize
+    ;jge end_loop
+
+    cmp r13, 0
+    jle end_loop
 
     lea rdi, [r12 + rbx * 4]  ; Current pixel address
     cmp rdi, r9
@@ -131,15 +134,28 @@ loop_pixels:
     ; Save
     movdqu xmmword ptr [r12 + rbx * 4], xmm1
 
+    ; --------------SegmentSize version---------------
     ; Compare rbx to image width, and add another 4 if it's bigger than the width
     ; Do the countdown (decrement width by 4) and check if it's bigger than 0
+    ;add rbx, 4
+	;sub r14, 4
+    ;jg loop_pixels
+    ;add rbx, 4            ; Add 4 to the pixel index to skip edges
+    ;mov r14, r8           ; Reset width for the next line
+    ;sub r14, 4
+    ;jmp loop_pixels
+    ; --------------SegmentSize version---------------
+    
+    ; -------------RowsToProcess version--------------
     add rbx, 4
-	sub r14, 4
+    sub r14, 4
     jg loop_pixels
     add rbx, 4            ; Add 4 to the pixel index to skip edges
     mov r14, r8           ; Reset width for the next line
     sub r14, 4
+    sub r13, 1            ; Decrement the number of rows to process
     jmp loop_pixels
+    ; -------------RowsToProcess version--------------
 
 end_loop:
     pop rbx
