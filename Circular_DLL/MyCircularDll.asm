@@ -2,10 +2,11 @@
 ;.586
 ;include \masm32\include\windows.inc
 ; V3
-; RCX -> RAX -> R12 - rgbDataSegments[currentIdx] - pixel data pointer
-; RDX -> R13        - segmentSize/rowsToProcess   - the size of the vector a thread must go through/number of rows to process
+; RCX -> RAX -> R12 - rgbDataSegments[currentIdx] - pointer to processed image data
+; RDX -> R13        - rowsToProcess               - the number of rows to process
 ; R8                - width                       - the width of the image
 ; R9                - endPixelAddress             - pointer to the last pixel to be processed
+; Stack -> RSI      - OGImageData[currentIdx]     - pointer to original image data
 .CODE
 CompressionFuncCircus PROC
 
@@ -14,10 +15,10 @@ ProcessNeigbor macro vert, horiz
     mov rcx, horiz
     mov rax, vert
     imul rax, r8          ; rax = vert * width
-    add rax, rcx        ; rax = (vert * width) + horiz
+    add rax, rcx          ; rax = (vert * width) + horiz
 
     ; Adjust the current pixel address
-    lea rdi, [r12 + rbx * 4] 
+    lea rdi, [RSI + rbx * 4] 
     add rdi, rax
 
     ; Load the neighbor pixel
@@ -37,20 +38,14 @@ ProcessNeigbor macro vert, horiz
     pand xmm7, xmm5 ; R
     paddd xmm1, xmm7
 
-    pxor xmm4, xmm4       ; Clear the register
+    pxor xmm4, xmm4
 
 endm
 
 setup:
-    push r12
-    push r13
-    push r14
-    push rbx
-
+    mov rsi, qword ptr [rsp + 40]
     mov r12, rcx
     mov r13, rdx          
-    ; r8 = width
-    ; r9 = endPixelAddress
 
     xor rbx, rbx          ; rbx = 0 (loop counter)
 
@@ -70,22 +65,22 @@ loop_pixels:
     ;jge end_loop
 
     cmp r13, 0
-    jle end_loop
+    jle end_procedure
 
-    lea rdi, [r12 + rbx * 4]  ; Current pixel address
+    lea rdi, [RSI + rbx * 4]  ; Current pixel address
     cmp rdi, r9
-    jge end_loop
+    jge end_procedure
 
     ; Clear R, G, B accumulators
     pxor xmm1, xmm1
     pxor xmm2, xmm2
     pxor xmm3, xmm3
 
-    ;           - (-2, -1), (-2, 0), (-2, 1)
-    ; - (-1, -2), (-1, -1), (-1, 0), (-1, 1), (-1, 2)
-    ; - ( 0, -2), ( 0, -1), (0, 0),  ( 0, 1), ( 0, 2)
-    ; - ( 1, -2), ( 1, -1), ( 1, 0), ( 1, 1), ( 1, 2)
-    ;           - ( 2, -1), ( 2, 0), ( 2, 1)
+    ;            (-2, -1), (-2, 0), (-2, 1)
+    ;  (-1, -2), (-1, -1), (-1, 0), (-1, 1), (-1, 2)
+    ;  ( 0, -2), ( 0, -1), ( 0, 0), ( 0, 1), ( 0, 2)
+    ;  ( 1, -2), ( 1, -1), ( 1, 0), ( 1, 1), ( 1, 2)
+    ;            ( 2, -1), ( 2, 0), ( 2, 1)
 
     ; 5x5 Circular Filter (every index needs to be multiplied by 4)
 
@@ -134,19 +129,6 @@ loop_pixels:
     ; Save
     movdqu xmmword ptr [r12 + rbx * 4], xmm1
 
-    ; --------------SegmentSize version---------------
-    ; Compare rbx to image width, and add another 4 if it's bigger than the width
-    ; Do the countdown (decrement width by 4) and check if it's bigger than 0
-    ;add rbx, 4
-	;sub r14, 4
-    ;jg loop_pixels
-    ;add rbx, 4            ; Add 4 to the pixel index to skip edges
-    ;mov r14, r8           ; Reset width for the next line
-    ;sub r14, 4
-    ;jmp loop_pixels
-    ; --------------SegmentSize version---------------
-    
-    ; -------------RowsToProcess version--------------
     add rbx, 4
     sub r14, 4
     jg loop_pixels
@@ -155,13 +137,8 @@ loop_pixels:
     sub r14, 4
     sub r13, 1            ; Decrement the number of rows to process
     jmp loop_pixels
-    ; -------------RowsToProcess version--------------
 
-end_loop:
-    pop rbx
-    pop r14
-    pop r13
-    pop r12
+end_procedure:
     ret
 
 CompressionFuncCircus ENDP

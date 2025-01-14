@@ -1,14 +1,15 @@
 #include "pch.h"
 #include "Circus.h"
 
-void CompressionFuncCircus(int* pixelData, int rowsToProcess, int width, const int* endPixelAddress) 
+void CompressionFuncCircus(int* pixelData, int rowsToProcess, int width, const int* endPixelAddress, int* OGPixelData) 
 {
     for (int row = 0; row < rowsToProcess; ++row) 
     {
         for (int col = 2; col < width - 2; ++col) 
         {
             // Calculate the current pixel's address
-            int* currentPixelAddress = pixelData + ((row) * width + (col-2));
+            int* currentPixelAddress = OGPixelData + ((row)*width + (col - 2)),
+                * processedPixelAddress = pixelData + ((row)*width + col - 2);
 
             if (currentPixelAddress > endPixelAddress)
                 return;
@@ -26,18 +27,13 @@ void CompressionFuncCircus(int* pixelData, int rowsToProcess, int width, const i
                         (y == 2 && x == 2))) 
                     {
 
-                        int* neighborPixelAddress = currentPixelAddress + (y * width + x);
-
                         // Extract color components
-                        int neighborPixel = *neighborPixelAddress;
-                        int red = (neighborPixel >> 16) & 0xFF;
-                        int green = (neighborPixel >> 8) & 0xFF;
-                        int blue = neighborPixel & 0xFF;
+                        int neighborPixel = *(currentPixelAddress + (y * width + x));
 
                         // Accumulate values
-                        redSum += red;
-                        greenSum += green;
-                        blueSum += blue;
+                        redSum += ((neighborPixel >> 16) & 0xFF);
+                        greenSum += ((neighborPixel >> 8) & 0xFF);
+                        blueSum += (neighborPixel & 0xFF);
                     }
                 }
             }
@@ -48,7 +44,7 @@ void CompressionFuncCircus(int* pixelData, int rowsToProcess, int width, const i
             int avgBlue = blueSum / 21;
 
             // Update the current pixel
-            *currentPixelAddress = (0xFF << 24) | (avgRed << 16) | (avgGreen << 8) | avgBlue;
+            *processedPixelAddress = (0xFF << 24) | (avgRed << 16) | (avgGreen << 8) | avgBlue;
         }
 
     }

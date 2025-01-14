@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <cmath>
 
-typedef int* (*CircusFunc)(int*, int, int, const int*);
+typedef int* (*CircusFunc)(int*, int, int, const int*, int*);
 
 class QtCircularApp : public QWidget
 {
@@ -16,7 +16,6 @@ class QtCircularApp : public QWidget
 public:
 	explicit QtCircularApp(QWidget* parent = nullptr);
     ~QtCircularApp();
-	void calculate_optimal_sizes(int totalSize, int numThreads, std::vector<int>& sizes);
 	void calculate_optimal_heights(int imgHeight, int numThreads, std::vector<int>& heights);
     QImage padImage(const QImage& image);
     

@@ -3,19 +3,6 @@
 #include <QInputDialog>
 #include <QDebug>
 
-
-void QtCircularApp::calculate_optimal_sizes(int totalSize, int numThreads, std::vector<int>& sizes)
-{
-	int baseSize = totalSize / numThreads;
-	int remainder = totalSize % numThreads;
-
-	for (int i = 0; i < numThreads; ++i)
-	{
-		sizes.push_back(baseSize + (remainder > 0 ? 1 : 0));
-		if (remainder > 0) remainder--;
-	}
-}
-
 void QtCircularApp::calculate_optimal_heights(int imgHeight, int numThreads, std::vector<int>& heights)
 {
 	int baseHeight = imgHeight / numThreads;
@@ -83,18 +70,18 @@ void QtCircularApp::onLibChooseButton_clicked() {
 
 	if (ok && !choice.isEmpty())
 	{
-		QString libPath;
+		QString libPath, exeDir{ QCoreApplication::applicationDirPath() };
 		if (choice == "ASM Library")
 		{
 			qDebug() << "ASM Library selected.";
-			libPath = "..\\x64\\Debug\\Circular_DLL.dll";
+			libPath = exeDir + "/Circular_DLL.dll";
 			chosenLib = 1;
 			ui.chosenLibLabel->setText("Chosen library: ASM");
 		}
 		else if (choice == "C++ Library")
 		{
 			qDebug() << "C++ Library selected.";
-			libPath = "..\\x64\\Debug\\Circus.dll";
+			libPath = exeDir + "/Circus.dll";
 			chosenLib = 2;
 			ui.chosenLibLabel->setText("Chosen library: CPP");
 		}
@@ -161,23 +148,23 @@ void QtCircularApp::onThreadChooseButton_clicked()
 void QtCircularApp::onApplyFilterButton_clicked()
 {
 	//V3
-	
+
 	if (chosenImage.isNull() || !filterFunc)
 	{
 		QMessageBox::warning(this, "Error", "Please load an image and select a library");
 		return;
 	}
 
-	int bytesPerLine = chosenImage.bytesPerLine(), heightOG = chosenImage.height(), 
+	int bytesPerLine = chosenImage.bytesPerLine(), heightOG = chosenImage.height(),
 		segmentHeightOG = heightOG / threadsToUse, widthOG = chosenImage.width();
 
-	QImage processedImage = chosenImage, 
-		   innerPart = processedImage.copy(0, 2, widthOG, heightOG - 4);
+	QImage processedImage = chosenImage,
+		innerPart = processedImage.copy(0, 2, widthOG, heightOG - 4);
 
 
-	auto byteDataPointer = processedImage.bits();
-	QRgb* rgbData = (QRgb*)byteDataPointer;
-	std::vector<int> processedImageRGBData;
+	auto byteDataPointer{ processedImage.bits() }, innerDataPointer{ innerPart.bits() };
+	QRgb* rgbData{ (QRgb*)byteDataPointer }, * innerData{ (QRgb*)innerDataPointer };
+	std::vector<int> processedImageRGBData, innerDataVec, OGImageData;
 
 	for (int i = 0; i < heightOG; i++)
 	{
@@ -186,17 +173,17 @@ void QtCircularApp::onApplyFilterButton_clicked()
 			processedImageRGBData.push_back(rgbData[i * widthOG + j]);
 		}
 	}
-	qDebug() << "Height: " << heightOG << 
-		"\nWidth: " << widthOG << 
-		"\nBytes per line: " << bytesPerLine << 
-		"\nSegment height: " << segmentHeightOG << 
-		"\nCalculated RGB data size: " << widthOG * heightOG << 
-		"\nVector size: " << processedImageRGBData.size() << 
-		"\n";
 
-	auto innerDataPointer = innerPart.bits();
-	QRgb* innerData = (QRgb*)innerDataPointer;
-	std::vector<int> innerDataVec;
+	OGImageData = processedImageRGBData;
+
+	qDebug() << "Height: " << heightOG <<
+		"\nWidth: " << widthOG <<
+		"\nBytes per line: " << bytesPerLine <<
+		"\nSegment height: " << segmentHeightOG <<
+		"\nCalculated RGB data size: " << widthOG * heightOG <<
+		"\nVector size: " << processedImageRGBData.size() <<
+		"\nAddress of OG Pixel Data: " << &OGImageData[(2 * widthOG) + 2] << 
+		"\n";
 
 	for (int i = 0; i < heightOG - 4; i++)
 	{
@@ -208,7 +195,6 @@ void QtCircularApp::onApplyFilterButton_clicked()
 
 	std::vector<std::thread> threads;
 	std::vector<int> sizes, heights;
-	//calculate_optimal_sizes(innerDataVec.size(), threadsToUse, sizes);
 	calculate_optimal_heights(heightOG, threadsToUse, heights);
 
 	auto startTime = std::chrono::high_resolution_clock::now();
@@ -216,20 +202,12 @@ void QtCircularApp::onApplyFilterButton_clicked()
 	int currentIdx = (2 * widthOG) + 2;
 	for (int j = 0; j < threadsToUse; j++)
 	{
-		/*int segmentSize = sizes[j];			                         // 1 after the last | last | 2 rows above | 2 pixels left = (widthOG - 2, heightOG - 2)
-		const int* endPixelAddress = &processedImageRGBData.at(processedImageRGBData.size() - 1 - (2 * widthOG) - 2);
-		threads.emplace_back([this, &processedImageRGBData, currentIdx, segmentSize, widthOG, endPixelAddress]()
-			{
-				//              RCX								 RDX		  R8           R9
-				filterFunc(&processedImageRGBData[currentIdx], segmentSize, widthOG, endPixelAddress);
-			});
-		currentIdx += segmentSize;*/
 		int rowsToProcess = heights[j];			                      // 1 after the last | last | 2 rows above | 2 pixels left = (widthOG - 2, heightOG - 2)
-		const int* endPixelAddress = &processedImageRGBData.at(processedImageRGBData.size() - 1 - (2 * widthOG) - 2);
-		threads.emplace_back([this, &processedImageRGBData, currentIdx, rowsToProcess, widthOG, endPixelAddress]()
+		const int* endPixelAddress = &OGImageData.at(OGImageData.size() - 1 - (2 * widthOG) - 2);
+		threads.emplace_back([this, &processedImageRGBData, currentIdx, rowsToProcess, widthOG, endPixelAddress, &OGImageData]()
 			{
-				//              RCX								 RDX		  R8           R9
-				filterFunc(&processedImageRGBData[currentIdx], rowsToProcess, widthOG, endPixelAddress);
+				//              RCX								 RDX		  R8           R9			Stack
+				filterFunc(&processedImageRGBData[currentIdx], rowsToProcess, widthOG, endPixelAddress, &OGImageData[currentIdx]);
 			});
 		currentIdx += rowsToProcess * widthOG;
 

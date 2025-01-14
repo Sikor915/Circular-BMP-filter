@@ -73,6 +73,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>C:\Users\sikor\source\repos\QtCircularSOL\Circus;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>None</DebugInformationFormat>
+      <Optimization>Disabled</Optimization>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">

@@ -9,4 +9,4 @@
 #define CIRCUS_API __declspec(dllimport)
 #endif
 
-extern "C" CIRCUS_API void CompressionFuncCircus(int*, int, int, const int*);
+extern "C" CIRCUS_API void CompressionFuncCircus(int*, int, int, const int*, int*);
