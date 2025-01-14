@@ -83,18 +83,18 @@ void QtCircularApp::onLibChooseButton_clicked() {
 
 	if (ok && !choice.isEmpty())
 	{
-		QString libPath;
+		QString libPath, exeDir{ QCoreApplication::applicationDirPath() };
 		if (choice == "ASM Library")
 		{
 			qDebug() << "ASM Library selected.";
-			libPath = "..\\x64\\Debug\\Circular_DLL.dll";
+			libPath = exeDir + "/Circular_DLL.dll";
 			chosenLib = 1;
 			ui.chosenLibLabel->setText("Chosen library: ASM");
 		}
 		else if (choice == "C++ Library")
 		{
 			qDebug() << "C++ Library selected.";
-			libPath = "..\\x64\\Debug\\Circus.dll";
+			libPath = exeDir + "/Circus.dll";
 			chosenLib = 2;
 			ui.chosenLibLabel->setText("Chosen library: CPP");
 		}
@@ -175,17 +175,20 @@ void QtCircularApp::onApplyFilterButton_clicked()
 		   innerPart = processedImage.copy(0, 2, widthOG, heightOG - 4);
 
 
-	auto byteDataPointer = processedImage.bits();
-	QRgb* rgbData = (QRgb*)byteDataPointer;
-	std::vector<int> processedImageRGBData;
+	auto byteDataPointer{ processedImage.bits() }, innerDataPointer{ innerPart.bits() };
+	QRgb* rgbData{ (QRgb*)byteDataPointer }, *innerData{ (QRgb*)innerDataPointer };
+	std::vector<int> OGImageRGBData;
 
 	for (int i = 0; i < heightOG; i++)
 	{
 		for (int j = 0; j < widthOG; j++)
 		{
-			processedImageRGBData.push_back(rgbData[i * widthOG + j]);
+			OGImageRGBData.push_back(rgbData[i * widthOG + j]);
 		}
 	}
+
+	std::vector<int> processedImageRGBData = OGImageRGBData;
+
 	qDebug() << "Height: " << heightOG << 
 		"\nWidth: " << widthOG << 
 		"\nBytes per line: " << bytesPerLine << 
@@ -194,42 +197,23 @@ void QtCircularApp::onApplyFilterButton_clicked()
 		"\nVector size: " << processedImageRGBData.size() << 
 		"\n";
 
-	auto innerDataPointer = innerPart.bits();
-	QRgb* innerData = (QRgb*)innerDataPointer;
-	std::vector<int> innerDataVec;
-
-	for (int i = 0; i < heightOG - 4; i++)
-	{
-		for (int j = 0; j < widthOG; j++)
-		{
-			innerDataVec.push_back(rgbData[i * widthOG + j]);
-		}
-	}
-
 	std::vector<std::thread> threads;
-	std::vector<int> sizes, heights;
-	//calculate_optimal_sizes(innerDataVec.size(), threadsToUse, sizes);
+	std::vector<int>heights; 
 	calculate_optimal_heights(heightOG, threadsToUse, heights);
-
+	qDebug() << &OGImageRGBData[2 * widthOG + 2] << "\n";
 	auto startTime = std::chrono::high_resolution_clock::now();
 
 	int currentIdx = (2 * widthOG) + 2;
 	for (int j = 0; j < threadsToUse; j++)
 	{
-		/*int segmentSize = sizes[j];			                         // 1 after the last | last | 2 rows above | 2 pixels left = (widthOG - 2, heightOG - 2)
-		const int* endPixelAddress = &processedImageRGBData.at(processedImageRGBData.size() - 1 - (2 * widthOG) - 2);
-		threads.emplace_back([this, &processedImageRGBData, currentIdx, segmentSize, widthOG, endPixelAddress]()
+		int rowsToProcess = heights[j];			        // 1 after the last | last | 2 rows above | 2 pixels left = (widthOG - 2, heightOG - 2)
+		const int* endPixelAddress = &OGImageRGBData.at(OGImageRGBData.size() - 1 - (2 * widthOG) - 2);
+		threads.emplace_back([this, &processedImageRGBData, currentIdx, rowsToProcess, widthOG, endPixelAddress, &OGImageRGBData]()
 			{
-				//              RCX								 RDX		  R8           R9
-				filterFunc(&processedImageRGBData[currentIdx], segmentSize, widthOG, endPixelAddress);
-			});
-		currentIdx += segmentSize;*/
-		int rowsToProcess = heights[j];			                      // 1 after the last | last | 2 rows above | 2 pixels left = (widthOG - 2, heightOG - 2)
-		const int* endPixelAddress = &processedImageRGBData.at(processedImageRGBData.size() - 1 - (2 * widthOG) - 2);
-		threads.emplace_back([this, &processedImageRGBData, currentIdx, rowsToProcess, widthOG, endPixelAddress]()
-			{
-				//              RCX								 RDX		  R8           R9
-				filterFunc(&processedImageRGBData[currentIdx], rowsToProcess, widthOG, endPixelAddress);
+				// ASM powinien braæ dane z oryginalnej i zapisywaæ do nowej, tak samo CPP
+				// Musisz jeszcze zrobiæ jakieœ zaokr¹glanie w CPP/ASM by pozbyæ siê ró¿nicy +1/-1
+				//              RCX								 RDX		  R8           R9			stack?
+				filterFunc(&processedImageRGBData[currentIdx], rowsToProcess, widthOG, endPixelAddress, &OGImageRGBData[currentIdx]);
 			});
 		currentIdx += rowsToProcess * widthOG;
 
