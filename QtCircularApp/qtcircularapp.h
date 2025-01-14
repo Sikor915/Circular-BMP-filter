@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <cmath>
 
-typedef int* (*CircusFunc)(int*, int, int, const int*, int*);
+typedef int* (*CircusFunc)(int*, int, int, const int*);
 
 class QtCircularApp : public QWidget
 {

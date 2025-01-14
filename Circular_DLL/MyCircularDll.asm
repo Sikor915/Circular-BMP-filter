@@ -1,49 +1,11 @@
-; Temat: Filtr dolnoprzepustowy kolowy
-; Algorytm ten usrednia wartosci pikseli bazujac na macierzy sasiadow 5x5, tworzac efekt rozmycia.
-; Ta implementacja pomija piksele na krawedziach obrazu, co powoduje powstanie "okna".
-; Data wykonania: 2025-01-14
-; Autor: Kacper Sikorski, INF/5 semestr
-; --------------------------------------------------------------------------------------------------------------
-; | Wersja: 1.0 - 2024.12.03                                                                                   |
-; | W wersji 1.0 algorytm dziala dobrze gdy ilosc wybranych watkow jest wieksza od 16.                         |
-; | Przekazuje wskaznik do pikseli, rozmiar vectora do przejsca i wymiary paska do przejscia.                  |
-; | Wykorzystuje potrojna petle aby przejsc przez wszystkich sasiadow wszystkich pikseli                       |
-; | i odpowiednio unikajac danych poza obrazem.                                                                |
-; --------------------------------------------------------------------------------------------------------------
-; | Wersja 2.0 - 2024.12.09                                                                                    |
-; | W wersji 2.0 algorytm dziala poprawnie dla dowolnych obrazow .bmp i ilosci watkow.                         |
-; | Pozbylem sie potrojnej petli, zastepujac ja wywolywaniem procedury odpowiedzialnej                         |
-; | za sumowanie kanalow RGB sasiadow aktualnie przetwarzanego piksela.                                        |
-; | W tej wersji, rejestry xmm sa jedynie wykorzystywane jako dodatkowe miejsce.                               |
-; | Nie ma tutaj przetwarzania wektorowego.                                                                    |
-; --------------------------------------------------------------------------------------------------------------
-; | Wersja 3.0 - 2024.12.22                                                                                    |
-; | W wersji 3.0 algorytm stosuje przetwarzanie wektorowe, poprzez prace na 4 pikselach naraz.                 |
-; | Dodatkowo, w tej wersji zamiast przerabiac caly obraz, algorytm nie przetwarza pikseli na krawedziach.     |
-; | Zamiast przekazywac wysokosc obrazu, przekazuje adres do ostatniego piksela do przetworzenia,              |
-; | aby algorytm w odpowiednim miejscu sie skonczyl.                                                           |
-; --------------------------------------------------------------------------------------------------------------
-; | Wersja 3.1 - 2024.12.30                                                                                    |
-; | W wersji 3.1 algorytm nie wykorzystuje konwersji na float oraz dzielenia, lecz wszystko odbywa sie         |
-; | na intach. Dodatkowo zamienilem wywolywanie funkcji na makro, co przyspiesza dzialanie programu.           |
-; --------------------------------------------------------------------------------------------------------------
-; | Wersja 3.2 - 2025.01.04                                                                                    |
-; | W wersji 3.2 zmienilem jeden z przekazywanych argumentow, by algorytm przetwarzal okreslona ilosc wierszy  |
-; | a nie rozmiar vectora, co usuwa blad kiedy szerokosc obrazu jest wieksza od rozmiaru vectora do przejscia. |
-; --------------------------------------------------------------------------------------------------------------
-; | Wersja 3.3 - 2025.01.14                                                                                    |
-; | W wersji 3.3 zamiast pracowac na jednej kopii obrazu, algorytm pobiera dane z jednego vectora i po         |
-; | przetworzeniu zapisuje wynik do innego vectora. Dzieki temu wynik jego pracy powinien zawsze byc taki sam. |
-; --------------------------------------------------------------------------------------------------------------
-
+;-------------------------------------------------------------------------
 ;.586
 ;include \masm32\include\windows.inc
-; V3.3
-; RCX -> R12        - rgbDataSegments[currentIdx] - pointer to processed image data
+; V3
+; RCX -> RAX -> R12 - rgbDataSegments[currentIdx] - pixel data pointer
 ; RDX -> R13        - segmentSize/rowsToProcess   - the size of the vector a thread must go through/number of rows to process
 ; R8                - width                       - the width of the image
 ; R9                - endPixelAddress             - pointer to the last pixel to be processed
-; RAX -> RSI	    - OGImageRGBData[currentIdx]  - pointer to the original image data
 .CODE
 CompressionFuncCircus PROC
 
@@ -55,7 +17,7 @@ ProcessNeigbor macro vert, horiz
     add rax, rcx        ; rax = (vert * width) + horiz
 
     ; Adjust the current pixel address
-    lea rdi, [rsi + rbx * 4] 
+    lea rdi, [r12 + rbx * 4] 
     add rdi, rax
 
     ; Load the neighbor pixel
@@ -80,13 +42,11 @@ ProcessNeigbor macro vert, horiz
 endm
 
 setup:
-    push rsi
     push r12
     push r13
     push r14
     push rbx
 
-    mov rsi, rax
     mov r12, rcx
     mov r13, rdx          
     ; r8 = width
@@ -112,7 +72,7 @@ loop_pixels:
     cmp r13, 0
     jle end_loop
 
-    lea rdi, [rsi + rbx * 4]  ; Current pixel address
+    lea rdi, [r12 + rbx * 4]  ; Current pixel address
     cmp rdi, r9
     jge end_loop
 
@@ -121,11 +81,11 @@ loop_pixels:
     pxor xmm2, xmm2
     pxor xmm3, xmm3
 
-    ;            (-2, -1), (-2, 0), (-2, 1)
-    ;  (-1, -2), (-1, -1), (-1, 0), (-1, 1), (-1, 2)
-    ;  ( 0, -2), ( 0, -1), (0, 0) , ( 0, 1), ( 0, 2)
-    ;  ( 1, -2), ( 1, -1), ( 1, 0), ( 1, 1), ( 1, 2)
-    ;            ( 2, -1), ( 2, 0), ( 2, 1)
+    ;           - (-2, -1), (-2, 0), (-2, 1)
+    ; - (-1, -2), (-1, -1), (-1, 0), (-1, 1), (-1, 2)
+    ; - ( 0, -2), ( 0, -1), (0, 0),  ( 0, 1), ( 0, 2)
+    ; - ( 1, -2), ( 1, -1), ( 1, 0), ( 1, 1), ( 1, 2)
+    ;           - ( 2, -1), ( 2, 0), ( 2, 1)
 
     ; 5x5 Circular Filter (every index needs to be multiplied by 4)
 
@@ -173,7 +133,20 @@ loop_pixels:
 
     ; Save
     movdqu xmmword ptr [r12 + rbx * 4], xmm1
+
+    ; --------------SegmentSize version---------------
+    ; Compare rbx to image width, and add another 4 if it's bigger than the width
+    ; Do the countdown (decrement width by 4) and check if it's bigger than 0
+    ;add rbx, 4
+	;sub r14, 4
+    ;jg loop_pixels
+    ;add rbx, 4            ; Add 4 to the pixel index to skip edges
+    ;mov r14, r8           ; Reset width for the next line
+    ;sub r14, 4
+    ;jmp loop_pixels
+    ; --------------SegmentSize version---------------
     
+    ; -------------RowsToProcess version--------------
     add rbx, 4
     sub r14, 4
     jg loop_pixels
@@ -182,13 +155,13 @@ loop_pixels:
     sub r14, 4
     sub r13, 1            ; Decrement the number of rows to process
     jmp loop_pixels
+    ; -------------RowsToProcess version--------------
 
 end_loop:
     pop rbx
     pop r14
     pop r13
     pop r12
-    pop rsi
     ret
 
 CompressionFuncCircus ENDP
