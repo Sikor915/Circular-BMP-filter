@@ -1,7 +1,46 @@
-;-------------------------------------------------------------------------
+; Temat: Filtr dolnoprzepustowy kolowy
+; Algorytm ten usrednia wartosci pikseli bazujac na macierzy sasiadow 5x5, tworzac efekt rozmycia.
+; Ta implementacja pomija piksele na krawedziach obrazu, co powoduje powstanie "okna".
+; Data wykonania: 2025-01-14
+; Autor: Kacper Sikorski, INF/5 semestr
+; --------------------------------------------------------------------------------------------------------------
+; | Wersja: 1.0 - 2024.12.03                                                                                   |
+; | W wersji 1.0 algorytm dziala dobrze gdy ilosc wybranych watkow jest wieksza od 16.                         |
+; | Przekazuje wskaznik do pikseli, rozmiar vectora do przejsca i wymiary paska do przejscia.                  |
+; | Wykorzystuje potrojna petle aby przejsc przez wszystkich sasiadow wszystkich pikseli                       |
+; | i odpowiednio unikajac danych poza obrazem.                                                                |
+; --------------------------------------------------------------------------------------------------------------
+; | Wersja 2.0 - 2024.12.09                                                                                    |
+; | W wersji 2.0 algorytm dziala poprawnie dla dowolnych obrazow .bmp i ilosci watkow.                         |
+; | Pozbylem sie potrojnej petli, zastepujac ja wywolywaniem procedury odpowiedzialnej                         |
+; | za sumowanie kanalow RGB sasiadow aktualnie przetwarzanego piksela.                                        |
+; | W tej wersji, rejestry xmm sa jedynie wykorzystywane jako dodatkowe miejsce.                               |
+; | Nie ma tutaj przetwarzania wektorowego.                                                                    |
+; --------------------------------------------------------------------------------------------------------------
+; | Wersja 3.0 - 2024.12.22                                                                                    |
+; | W wersji 3.0 algorytm stosuje przetwarzanie wektorowe, poprzez prace na 4 pikselach naraz.                 |
+; | Dodatkowo, w tej wersji zamiast przerabiac caly obraz, algorytm nie przetwarza pikseli na krawedziach.     |
+; | Zamiast przekazywac wysokosc obrazu, przekazuje adres do ostatniego piksela do przetworzenia,              |
+; | aby algorytm w odpowiednim miejscu sie skonczyl.                                                           |
+; --------------------------------------------------------------------------------------------------------------
+; | Wersja 3.1 - 2024.12.30                                                                                    |
+; | W wersji 3.1 algorytm nie wykorzystuje konwersji na float oraz dzielenia, lecz wszystko odbywa sie         |
+; | na intach. Dodatkowo zamienilem wywolywanie funkcji na makro, co przyspiesza dzialanie programu.           |
+; --------------------------------------------------------------------------------------------------------------
+; | Wersja 3.2 - 2025.01.04                                                                                    |
+; | W wersji 3.2 zmienilem jeden z przekazywanych argumentow, by algorytm przetwarzal okreslona ilosc wierszy  |
+; | a nie rozmiar vectora, co usuwa blad kiedy szerokosc obrazu jest wieksza od rozmiaru vectora do przejscia. |
+; --------------------------------------------------------------------------------------------------------------
+; | Wersja 3.3 - 2025.01.14                                                                                    |
+; | W wersji 3.3 zamiast pracowac na jednej kopii obrazu, algorytm pobiera dane z jednego vectora i po         |
+; | przetworzeniu zapisuje wynik do innego vectora. Dzieki temu wynik jego pracy powinien zawsze byc taki sam. |
+; --------------------------------------------------------------------------------------------------------------
+; | Wersja 3.3.1 - 2025.01.19                                                                                  |
+; | W wersji 3.3.1 zrobilem szybka poprawke z dzialaniami na stosie                                            |
+; --------------------------------------------------------------------------------------------------------------
 ;.586
 ;include \masm32\include\windows.inc
-; V3
+; V3.3.1
 ; RCX -> RAX -> R12 - rgbDataSegments[currentIdx] - pointer to processed image data
 ; RDX -> R13        - rowsToProcess               - the number of rows to process
 ; R8                - width                       - the width of the image
@@ -43,7 +82,14 @@ ProcessNeigbor macro vert, horiz
 endm
 
 setup:
-    mov rsi, qword ptr [rsp + 40]
+    push r12
+    push r13
+    push r14
+    push rsi
+    push rdi
+    push rbx
+
+    mov rsi, qword ptr [rsp + 88]
     mov r12, rcx
     mov r13, rdx          
 
@@ -139,6 +185,12 @@ loop_pixels:
     jmp loop_pixels
 
 end_procedure:
+    pop rbx
+    pop rdi
+    pop rsi
+    pop r14
+    pop r13
+    pop r12
     ret
 
 CompressionFuncCircus ENDP
